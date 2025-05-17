@@ -20,30 +20,21 @@ import base64
 
 # Global variables
 API_URL = "http://localhost:3000"
-SUPPORTED_COINS = ["bitcoin", "ethereum", "matic-network", "solana", "cardano", "ripple"]
+SUPPORTED_COINS = ["bitcoin", "ethereum", "matic-network"]
 COIN_NAMES = {
     "bitcoin": "Bitcoin", 
     "ethereum": "Ethereum", 
-    "matic-network": "Polygon (Matic)",
-    "solana": "Solana",
-    "cardano": "Cardano",
-    "ripple": "XRP"
+    "matic-network": "Polygon (Matic)"
 }
 COIN_ICONS = {
     "bitcoin": "₿",
     "ethereum": "Ξ",
-    "matic-network": "⬡",
-    "solana": "◎",
-    "cardano": "₳",
-    "ripple": "✕"
+    "matic-network": "⬡"
 }
 COIN_COLORS = {
     "bitcoin": "#F7931A",
     "ethereum": "#627EEA",
-    "matic-network": "#8247E5",
-    "solana": "#00FFA3",
-    "cardano": "#0033AD",
-    "ripple": "#23292F"
+    "matic-network": "#8247E5"
 }
 
 # Initialize session state
@@ -166,23 +157,6 @@ def get_coin_deviation(coin):
         st.error(f"Error connecting to API: {str(e)}")
         return None
 
-def get_price_history(coin, timeframe="24h"):
-    """Get historical price data for a specific coin"""
-    try:
-        response = requests.get(
-            f"{API_URL}/history", 
-            params={"coin": coin, "timeframe": timeframe}, 
-            timeout=5
-        )
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.error(f"Error fetching price history: {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"Error connecting to API: {str(e)}")
-        return None
-
 def get_market_dominance():
     """Get market dominance data for top cryptocurrencies"""
     try:
@@ -191,19 +165,6 @@ def get_market_dominance():
             return response.json()
         else:
             st.error(f"Error fetching market dominance: {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"Error connecting to API: {str(e)}")
-        return None
-
-def get_trading_volume():
-    """Get 24h trading volume for supported coins"""
-    try:
-        response = requests.get(f"{API_URL}/volume", timeout=5)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.error(f"Error fetching trading volume: {response.text}")
             return None
     except Exception as e:
         st.error(f"Error connecting to API: {str(e)}")
@@ -295,7 +256,7 @@ def create_price_card(coin, stats):
             
         with col2:
             st.markdown(f"""
-            <div style="background-color:#1E1E1E; border-radius:10px; padding:15px; margin-bottom:10px;">
+            <div style="background-color:#1E1E1E; border-radius:10px; padding:15px; margin-bottom:15px;">
                 <h3 style="margin:0; color:white;">{COIN_NAMES[coin]}</h3>
                 <div style="font-size:24px; font-weight:bold; margin:5px 0;">{price_formatted}</div>
                 <div style="display:flex; justify-content:space-between;">
@@ -378,172 +339,6 @@ def create_minimal_view(coins_data):
             
             idx += 1
 
-def plot_price_history(price_data):
-    """Create an interactive price history chart"""
-    if not price_data:
-        return
-    
-    # Create figure with secondary y-axis
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-    
-    for coin, data in price_data.items():
-        if not data or "prices" not in data:
-            continue
-            
-        timestamps = [datetime.fromtimestamp(ts/1000) for ts in data["timestamps"]]
-        prices = data["prices"]
-        volumes = data.get("volumes", [0] * len(prices))
-        
-        # Add price line
-        fig.add_trace(
-            go.Scatter(
-                x=timestamps,
-                y=prices,
-                name=f"{COIN_NAMES[coin]} Price",
-                line=dict(color=COIN_COLORS[coin], width=2),
-                hovertemplate="<b>%{x}</b><br>$%{y:.2f}<extra></extra>"
-            ),
-            secondary_y=False
-        )
-        
-        # Add volume bars with 20% opacity
-        fig.add_trace(
-            go.Bar(
-                x=timestamps,
-                y=volumes,
-                name=f"{COIN_NAMES[coin]} Volume",
-                marker_color=COIN_COLORS[coin],
-                opacity=0.2,
-                hovertemplate="<b>%{x}</b><br>Volume: $%{y:,.0f}<extra></extra>"
-            ),
-            secondary_y=True
-        )
-    
-    # Update layout
-    fig.update_layout(
-        title="Price and Volume History",
-        xaxis_title="Date",
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        ),
-        hovermode="x unified",
-        height=500,
-        template="plotly_dark"
-    )
-    
-    # Set y-axes titles
-    fig.update_yaxes(title_text="Price (USD)", secondary_y=False)
-    fig.update_yaxes(title_text="Volume (USD)", secondary_y=True)
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-def create_market_dominance_chart(dominance_data):
-    """Create a pie chart showing market dominance"""
-    if not dominance_data:
-        return
-        
-    labels = [COIN_NAMES.get(coin, coin.capitalize()) for coin in dominance_data.keys()]
-    values = list(dominance_data.values())
-    colors = [COIN_COLORS.get(coin, "#808080") for coin in dominance_data.keys()]
-    
-    fig = go.Figure(data=[go.Pie(
-        labels=labels,
-        values=values,
-        hole=.4,
-        marker_colors=colors
-    )])
-    
-    fig.update_layout(
-        title="Market Dominance by Percentage",
-        height=450,
-        template="plotly_dark"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-def create_volume_comparison_chart(volume_data):
-    """Create a horizontal bar chart for trading volumes"""
-    if not volume_data:
-        return
-        
-    coins = list(volume_data.keys())
-    volumes = list(volume_data.values())
-    colors = [COIN_COLORS.get(coin, "#808080") for coin in coins]
-    
-    # Sort by volume
-    sorted_indices = np.argsort(volumes)
-    coins = [coins[i] for i in sorted_indices]
-    volumes = [volumes[i] for i in sorted_indices]
-    colors = [colors[i] for i in sorted_indices]
-    
-    fig = go.Figure(data=[go.Bar(
-        x=volumes,
-        y=[COIN_NAMES.get(coin, coin.capitalize()) for coin in coins],
-        orientation='h',
-        marker_color=colors,
-        text=[f"${v:,.0f}" for v in volumes],
-        textposition='inside'
-    )])
-    
-    fig.update_layout(
-        title="24h Trading Volume Comparison",
-        xaxis_title="Volume (USD)",
-        height=400,
-        template="plotly_dark"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-def create_correlation_heatmap(price_data):
-    """Create a correlation heatmap between different cryptocurrencies"""
-    if not price_data or len(price_data) < 2:
-        return
-        
-    # Extract price series for each coin
-    price_series = {}
-    max_length = 0
-    
-    for coin, data in price_data.items():
-        if data and "prices" in data and len(data["prices"]) > 0:
-            price_series[COIN_NAMES[coin]] = data["prices"]
-            max_length = max(max_length, len(data["prices"]))
-    
-    if len(price_series) < 2:
-        return
-        
-    # Create DataFrame with price series
-    df = pd.DataFrame()
-    for coin, prices in price_series.items():
-        # Pad or truncate series to same length
-        if len(prices) < max_length:
-            prices = prices + [None] * (max_length - len(prices))
-        elif len(prices) > max_length:
-            prices = prices[:max_length]
-        df[coin] = prices
-    
-    # Calculate correlation matrix
-    corr_matrix = df.corr(method='pearson')
-    
-    # Create heatmap
-    fig = px.imshow(
-        corr_matrix, 
-        text_auto=True, 
-        aspect="auto",
-        color_continuous_scale=px.colors.sequential.Viridis
-    )
-    
-    fig.update_layout(
-        title="Price Correlation Between Cryptocurrencies",
-        height=500,
-        template="plotly_dark"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
 def display_price_alerts_section():
     """Display and manage price alerts"""
     st.subheader("Price Alerts")
@@ -603,7 +398,7 @@ def display_price_alerts_section():
                 with st.container():
                     st.markdown(f"""
                     <div style="background-color:#1E1E1E; border-radius:5px; padding:10px; margin-bottom:10px;">
-                        <div style="display:flex; justify-content:space-between;">
+                        <div style="display:flex; justify-content:space-between;margin-top:20px;">
                             <span>{COIN_NAMES[coin]} ({COIN_ICONS[coin]})</span>
                             <button style="background:none; border:none; color:red; cursor:pointer;">✕</button>
                         </div>
@@ -688,20 +483,12 @@ def display_readme():
     - Bitcoin (BTC)
     - Ethereum (ETH)
     - Polygon (MATIC)
-    - Solana (SOL)
-    - Cardano (ADA)
-    - XRP (Ripple)
     
     ## API Endpoints
     
     - `/health` - API health check
     - `/stats` - Get current statistics for a specific coin
-    - `/history` - Get historical price data
-    - `/deviation` - Calculate price standard deviation
-    - `/market-dominance` - Get market dominance percentages
-    - `/volume` - Get 24h trading volumes
     - `/set-alert` - Set price alerts
-    - `/check-alerts` - Check if any alerts have been triggered
     - `/trigger-update` - Manually trigger a data update
     """)
 
@@ -720,9 +507,19 @@ def main():
     # Custom CSS
     st.markdown("""
     <style>
+        /* Center headers */
+        h1, h2, h3, h4, h5, h6 {
+            text-align: center;
+            margin-bottom:20px;
+        }
+        
+        /* Tabs styling with full width */
         .stTabs [data-baseweb="tab-list"] {
             gap: 24px;
+            width: 100%;
+            display: flex;
         }
+        
         .stTabs [data-baseweb="tab"] {
             height: 50px;
             white-space: pre-wrap;
@@ -731,44 +528,64 @@ def main():
             gap: 1px;
             padding-top: 10px;
             padding-bottom: 10px;
+            flex-grow: 1;
+            text-align: center;
         }
+        
         .stTabs [aria-selected="true"] {
             background-color: #262730;
             border-bottom: 2px solid #4CAF50;
         }
+        
+        /* Remove gap between vertical blocks */
         div[data-testid="stVerticalBlock"] {
             gap: 0px;
         }
+        
+        /* Metric styling */
         div[data-testid="stMetric"] {
             background-color: #1E1E1E;
             border-radius: 5px;
             padding: 10px;
         }
+        
+        /* Sidebar buttons */
         section[data-testid="stSidebar"] button {
             width: 100%;
             margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
         }
+        
+        /* Server status indicators */
         .server-status {
             padding: 5px 10px;
             border-radius: 5px;
             font-weight: bold;
             display: inline-block;
         }
+        
         .server-status.online {
             background-color: #4CAF50;
             color: white;
         }
+        
         .server-status.offline {
             background-color: #F44336;
             color: white;
         }
+        
+        /* Header height */
         .css-1avcm0n {
             height: 40px;
         }
+        
+        /* Expander styling */
         .stExpander {
             border: 1px solid #333;
             border-radius: 8px;
         }
+        
         /* Custom notification area */
         .notification-badge {
             background-color: #f44336;
@@ -780,14 +597,31 @@ def main():
             top: -5px;
             right: -5px;
         }
-        /* Improved metric cards */
+        
+        /* Improved metric cards with color options */
         .metric-card {
             background-color: #1E1E1E;
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 10px;
+        }
+        
+        .metric-card.green {
             border-left: 4px solid #4CAF50;
         }
+        
+        .metric-card.blue {
+            border-left: 4px solid #2196F3;
+        }
+        
+        .metric-card.purple {
+            border-left: 4px solid #9C27B0;
+        }
+        
+        .metric-card.orange {
+            border-left: 4px solid #FF9800;
+        }
+        
         /* Custom toggle buttons */
         .view-toggle {
             display: inline-flex;
@@ -795,24 +629,75 @@ def main():
             border-radius: 5px;
             margin-bottom: 10px;
         }
+        
         .view-toggle label {
             padding: 8px 16px;
             background-color: #1E1E1E;
             cursor: pointer;
             transition: all 0.3s;
         }
+        
         .view-toggle label:hover {
             background-color: #333;
         }
+        
         .view-toggle input[type="radio"] {
             display: none;
         }
+        
         .view-toggle input[type="radio"]:checked + label {
             background-color: #4CAF50;
             color: white;
         }
+        
+        /* Color theme options */
+        .theme-primary {
+            color: #4CAF50;
+        }
+        
+        .theme-secondary {
+            color: #2196F3;
+        }
+        
+        .theme-accent {
+            color: #FF9800;
+        }
+        
+        .theme-warning {
+            color: #FFC107;
+        }
+        
+        .theme-error {
+            color: #F44336;
+        }
+        
+        .theme-info {
+            color: #00BCD4;
+        }
+        
+        /* Background color options for containers */
+        .bg-dark {
+            background-color: #1E1E1E;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .bg-darker {
+            background-color: #121212;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .bg-highlight {
+            background-color: #2A2A2A;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
     </style>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) 
     
     # App title and header
     st.title("📊 Crypto Stats Dashboard")
@@ -892,59 +777,6 @@ def main():
             
             # Display price alerts section
             display_price_alerts_section()
-            
-            # Display price history charts
-            st.subheader("Price History")
-            
-            # Time range selector
-            time_options = {
-                "1h": "1 Hour", 
-                "24h": "24 Hours", 
-                "7d": "7 Days", 
-                "30d": "30 Days",
-                "90d": "90 Days"
-            }
-            
-            selected_time = st.select_slider(
-                "Select time range:",
-                options=list(time_options.keys()),
-                value=st.session_state.time_range,
-                format_func=lambda x: time_options[x]
-            )
-            
-            if selected_time != st.session_state.time_range:
-                st.session_state.time_range = selected_time
-                st.session_state.price_history = {}  # Clear cached data
-            
-            # Fetch price history data
-            price_data = {}
-            for coin in st.session_state.selected_coins:
-                if coin not in st.session_state.price_history:
-                    history_data = get_price_history(coin, st.session_state.time_range)
-                    if history_data:
-                        st.session_state.price_history[coin] = history_data
-                        price_data[coin] = history_data
-                else:
-                    price_data[coin] = st.session_state.price_history[coin]
-            
-            # Plot the chart
-            plot_price_history(price_data)
-            
-            # Market statistics section
-            st.subheader("Market Statistics")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Market dominance chart
-                dominance_data = get_market_dominance()
-                if dominance_data:
-                    create_market_dominance_chart(dominance_data)
-            
-            with col2:
-                # Trading volume chart
-                volume_data = get_trading_volume()
-                if volume_data:
-                    create_volume_comparison_chart(volume_data)
     
     # Analysis tab
     with tab2:
@@ -955,8 +787,6 @@ def main():
             
             # Price deviation analysis
             st.subheader("Price Volatility Analysis")
-            st.write("Standard deviation of price for selected cryptocurrencies:")
-            
             deviation_data = {}
             for coin in SUPPORTED_COINS:
                 deviation_result = get_coin_deviation(coin)
@@ -985,87 +815,8 @@ def main():
                 
                 st.plotly_chart(fig, use_container_width=True)
             
-            # Price Correlation Analysis
-            st.subheader("Price Correlation Analysis")
             
-            # Fetch price history data for all supported coins if not already available
-            correlation_data = {}
-            for coin in SUPPORTED_COINS:
-                if coin not in st.session_state.price_history:
-                    history_data = get_price_history(coin, "7d")  # Use 7-day data for correlation
-                    if history_data:
-                        correlation_data[coin] = history_data
-                else:
-                    correlation_data[coin] = st.session_state.price_history[coin]
             
-            # Create correlation heatmap
-            create_correlation_heatmap(correlation_data)
-            
-            # Performance comparison
-            st.subheader("Performance Comparison")
-            
-            # Time period selector for performance comparison
-            performance_periods = {
-                "24h": "24 Hours",
-                "7d": "7 Days",
-                "30d": "30 Days",
-                "365d": "1 Year"
-            }
-            
-            selected_period = st.radio(
-                "Select time period for comparison:",
-                options=list(performance_periods.keys()),
-                format_func=lambda x: performance_periods[x],
-                horizontal=True
-            )
-            
-            # Create mock performance data (in a real app, this would come from the API)
-            performance_data = {
-                "bitcoin": {"24h": 1.2, "7d": 5.3, "30d": -2.1, "365d": 28.7},
-                "ethereum": {"24h": 0.8, "7d": 4.2, "30d": -3.5, "365d": 32.1},
-                "matic-network": {"24h": -1.5, "7d": 3.1, "30d": -8.2, "365d": 15.3},
-                "solana": {"24h": 2.3, "7d": 8.7, "30d": 12.5, "365d": 45.8},
-                "cardano": {"24h": -0.5, "7d": 1.8, "30d": -5.3, "365d": 10.2},
-                "ripple": {"24h": 0.3, "7d": 2.5, "30d": -1.8, "365d": 18.5}
-            }
-            
-            # Extract performance data for selected period
-            period_data = {coin: data[selected_period] for coin, data in performance_data.items()}
-            
-            # Sort by performance
-            sorted_coins = sorted(period_data.keys(), key=lambda x: period_data[x], reverse=True)
-            sorted_performance = [period_data[coin] for coin in sorted_coins]
-            
-            # Create bar chart
-            fig = go.Figure(data=[go.Bar(
-                x=[COIN_NAMES[coin] for coin in sorted_coins],
-                y=sorted_performance,
-                marker_color=[COIN_COLORS[coin] for coin in sorted_coins],
-                text=[f"{perf:+.2f}%" for perf in sorted_performance]
-            )])
-            
-            fig.update_layout(
-                title=f"Price Performance Over {performance_periods[selected_period]}",
-                xaxis_title="",
-                yaxis_title="Percentage Change (%)",
-                height=500,
-                template="plotly_dark"
-            )
-            fig.update_traces(texttemplate='%{text}', textposition='outside')
-            
-            # Add a horizontal line at y=0
-            fig.add_shape(
-                type="line",
-                xref="paper",
-                yref="y",
-                x0=0,
-                y0=0,
-                x1=1,
-                y1=0,
-                line=dict(color="gray", width=1, dash="dash")
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
             
             # Trading volume trends
             st.subheader("Trading Volume Trends")
@@ -1126,13 +877,14 @@ def main():
                 if st.button("Start API Server"):
                     run_server_process("api")
                     st.success("Starting API server... Please wait")
+                    time.sleep(3)
+                    st.rerun()
             else:
                 if st.button("Stop API Server"):
                     stop_server_process("api")
                     st.warning("Stopping API server...")
-            
-            st.subheader("Server Output")
-            st.code(st.session_state.api_output, language="bash")
+                    time.sleep(3)
+                    st.rerun()
         
         with col2:
             st.header("Worker Server")
@@ -1149,13 +901,14 @@ def main():
                 if st.button("Start Worker Server"):
                     run_server_process("worker")
                     st.success("Starting Worker server... Please wait")
+                    time.sleep(3)
+                    st.rerun()
             else:
                 if st.button("Stop Worker Server"):
                     stop_server_process("worker")
                     st.warning("Stopping Worker server...")
-            
-            st.subheader("Server Output")
-            st.code(st.session_state.worker_output, language="bash")
+                    time.sleep(3)
+                    st.rerun()
         
         st.divider()
         
@@ -1211,9 +964,7 @@ def main():
         st.header("Development Team")
         
         team_members = [
-            {"name": "Jane Doe", "role": "Frontend Developer", "avatar": "JD"},
-            {"name": "John Smith", "role": "Backend Developer", "avatar": "JS"},
-            {"name": "Alice Johnson", "role": "Data Scientist", "avatar": "AJ"}
+            {"name": "Anidipta Pall", "role": "Full Stack Developer+UI/UX", "avatar": "AP"}
         ]
         
         cols = st.columns(len(team_members))
