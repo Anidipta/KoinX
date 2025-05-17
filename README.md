@@ -6,7 +6,8 @@ This project consists of two Node.js servers that work together to collect, stor
 
 ## Demo Video
 
-![](demo.mp4)
+Download and watch the demo video here:  
+[demo.mp4](demo.mp4)
 
 ## Features
 
