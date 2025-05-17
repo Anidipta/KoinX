@@ -63,14 +63,18 @@ def init_session_state():
     if "display_mode" not in st.session_state:
         st.session_state.display_mode = "cards"  # Options: cards, table, minimal
 
-# Server management functions
+import subprocess
+import threading
+import streamlit as st
+
 def run_server_process(server_type):
     """Run API or Worker server in background"""
     try:
         if server_type == "api":
             st.session_state.api_output = ""
+            cmd = "npm install && npm start"
             process = subprocess.Popen(
-                ["npm", "install", "&&", "npm", "start"], 
+                cmd,
                 cwd="./api-server",
                 shell=True,
                 stdout=subprocess.PIPE,
@@ -81,8 +85,9 @@ def run_server_process(server_type):
             
         elif server_type == "worker":
             st.session_state.worker_output = ""
+            cmd = "npm install && npm start"
             process = subprocess.Popen(
-                ["npm", "install", "&&", "npm", "start"],
+                cmd,
                 cwd="./worker-server",
                 shell=True,
                 stdout=subprocess.PIPE,
@@ -90,15 +95,16 @@ def run_server_process(server_type):
                 text=True
             )
             st.session_state.worker_process = process
-            
+        
         # Start a thread to capture process output
         threading.Thread(
             target=capture_process_output,
             args=(process, server_type),
             daemon=True
         ).start()
-            
+        
         return True
+
     except Exception as e:
         st.error(f"Failed to start {server_type} server: {str(e)}")
         return False
@@ -116,11 +122,13 @@ def capture_process_output(process, server_type):
 def stop_server_process(server_type):
     """Stop API or Worker server process"""
     if server_type == "api" and hasattr(st.session_state, "api_process"):
-        st.session_state.api_process.terminate()
-        st.session_state.api_process = None
+        if st.session_state.api_process != None:
+            st.session_state.api_process.terminate()
+            st.session_state.api_process = None
     elif server_type == "worker" and hasattr(st.session_state, "worker_process"):
-        st.session_state.worker_process.terminate()
-        st.session_state.worker_process = None
+        if st.session_state.worker_process != None:
+            st.session_state.worker_process.terminate()
+            st.session_state.worker_process = None
 
 # API interaction functions
 def check_api_health():
@@ -243,32 +251,37 @@ def create_price_card(coin, stats):
     color = "green" if change_24h >= 0 else "red"
     change_icon = "↑" if change_24h >= 0 else "↓"
     
-    # Create card
+    # Create card with gradient border
     with st.container():
-        col1, col2 = st.columns([1, 4])
-        
-        with col1:
-            st.markdown(f"""
-            <div style="font-size:52px; text-align:center; padding:10px; color:{COIN_COLORS[coin]}">
-                {COIN_ICONS[coin]}
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col2:
-            st.markdown(f"""
-            <div style="background-color:#1E1E1E; border-radius:10px; padding:15px; margin-bottom:15px;">
-                <h3 style="margin:0; color:white;">{COIN_NAMES[coin]}</h3>
-                <div style="font-size:24px; font-weight:bold; margin:5px 0;">{price_formatted}</div>
-                <div style="display:flex; justify-content:space-between;">
-                    <span>Market Cap: {market_cap_formatted}</span>
-                    <span style="color:{color};">{change_icon} {abs(change_24h):.2f}%</span>
+        st.markdown(f"""
+        <div class="crypto-card" style="background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.1)); 
+                border-left: 4px solid {COIN_COLORS[coin]}; 
+                border-radius: 10px; 
+                padding: 20px; 
+                margin-bottom: 20px;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                position: relative;
+                overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, {COIN_COLORS[coin]}, transparent);"></div>
+            <div style="display: flex; align-items: center;">
+                <div style="font-size: 48px; font-weight: bold; margin-right: 20px; color: {COIN_COLORS[coin]}; text-shadow: 0 0 10px rgba(255,255,255,0.1);">
+                    {COIN_ICONS[coin]}
                 </div>
-                <div style="display:flex; justify-content:space-between; margin-top:5px;">
-                    <span>24h Volume: {volume_formatted}</span>
-                    <span>Rank: #{stats.get('marketCapRank', 'N/A')}</span>
+                <div style="flex-grow: 1;">
+                    <h3 style="margin: 0; font-size: 24px; color: white;">{COIN_NAMES[coin]}</h3>
+                    <div style="font-size: 28px; font-weight: bold; margin: 8px 0;">{price_formatted}</div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <span style="color: #ccc;">Market Cap: {market_cap_formatted}</span>
+                        <span style="color: {color}; font-weight: bold;">{change_icon} {abs(change_24h):.2f}%</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <span style="color: #ccc;">24h Volume: {volume_formatted}</span>
+                        <span style="color: #ccc;">Rank: #{stats.get('marketCapRank', 'N/A')}</span>
+                    </div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
 
 def create_price_table(coins_data):
     """Create a table view of all coin data"""
@@ -307,7 +320,10 @@ def create_price_table(coins_data):
         "24h Volume": "${:,.0f}"
     }).applymap(style_negative_red, subset=["24h Change"])
     
+    # Display table with custom styling
+    st.markdown('<div class="styled-table-container">', unsafe_allow_html=True)
     st.dataframe(styled_df, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def create_minimal_view(coins_data):
     """Create a minimal ticker-style view of coin prices"""
@@ -329,11 +345,22 @@ def create_minimal_view(coins_data):
             
             with cols[idx % col_count]:
                 st.markdown(f"""
-                <div style="background-color:#1E1E1E; border-radius:5px; padding:8px; margin:5px 0; text-align:center;">
-                    <span style="color:{COIN_COLORS[coin]}; font-size:18px;">{COIN_ICONS[coin]}</span>
-                    <span style="font-weight:bold; margin-left:5px;">{COIN_NAMES[coin]}</span>
-                    <div style="font-size:16px;">${price:,.2f}</div>
-                    <div style="color:{color}; font-size:14px;">{change_icon} {abs(change_24h):.2f}%</div>
+                <div class="minimal-coin-card" style="
+                    background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95));
+                    border-radius: 10px; 
+                    padding: 12px; 
+                    margin: 8px 0; 
+                    text-align: center;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                    border-top: 2px solid {COIN_COLORS[coin]};
+                    position: relative;
+                    overflow: hidden;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; 
+                        background: linear-gradient(90deg, {COIN_COLORS[coin]}, transparent);"></div>
+                    <span style="color: {COIN_COLORS[coin]}; font-size: 24px; display: block; margin-bottom: 5px;">{COIN_ICONS[coin]}</span>
+                    <span style="font-weight: bold; font-size: 16px; color: white;">{COIN_NAMES[coin]}</span>
+                    <div style="font-size: 18px; margin: 8px 0; font-weight: bold;">${price:,.2f}</div>
+                    <div style="color: {color}; font-size: 15px; font-weight: bold;">{change_icon} {abs(change_24h):.2f}%</div>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -341,6 +368,7 @@ def create_minimal_view(coins_data):
 
 def display_price_alerts_section():
     """Display and manage price alerts"""
+    st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.subheader("Price Alerts")
     
     with st.expander("Set Price Alerts", expanded=False):
@@ -380,7 +408,7 @@ def display_price_alerts_section():
                     format="%.2f"
                 )
             
-            if st.button("Set Alert"):
+            if st.button("Set Alert", key="set_alert_btn", help="Set price alert for selected cryptocurrency"):
                 set_price_alert(alert_coin, upper_threshold, lower_threshold)
     
     # Display active alerts
@@ -388,6 +416,7 @@ def display_price_alerts_section():
                     if thresholds["upper"] is not None or thresholds["lower"] is not None}
     
     if active_alerts:
+        st.markdown('<div class="alerts-container">', unsafe_allow_html=True)
         st.subheader("Active Alerts")
         
         for coin, thresholds in active_alerts.items():
@@ -397,21 +426,32 @@ def display_price_alerts_section():
             if upper is not None or lower is not None:
                 with st.container():
                     st.markdown(f"""
-                    <div style="background-color:#1E1E1E; border-radius:5px; padding:10px; margin-bottom:10px;">
-                        <div style="display:flex; justify-content:space-between;margin-top:20px;">
-                            <span>{COIN_NAMES[coin]} ({COIN_ICONS[coin]})</span>
-                            <button style="background:none; border:none; color:red; cursor:pointer;">✕</button>
+                    <div class="alert-card" style="
+                        background: linear-gradient(135deg, rgba(20,20,20,0.95), rgba(30,30,30,0.9));
+                        border-radius: 8px; 
+                        padding: 15px; 
+                        margin-bottom: 12px;
+                        border-left: 3px solid {COIN_COLORS.get(coin, '#4CAF50')};
+                        position: relative;
+                        overflow: hidden;">
+                        <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; 
+                            background: linear-gradient(90deg, {COIN_COLORS.get(coin, '#4CAF50')}, transparent);"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: white; font-weight: bold;">{COIN_NAMES[coin]} {COIN_ICONS[coin]}</span>
+                            <button style="background: none; border: none; color: #ff5252; cursor: pointer; font-size: 16px;">✕</button>
                         </div>
-                        <div style="margin-top:5px;">
-                            {f"Upper: ${upper:,.2f}" if upper is not None else ""}
+                        <div style="margin-top: 8px; color: #ccc;">
+                            {f"Upper: <span style='color: #4CAF50; font-weight: bold;'>${upper:,.2f}</span>" if upper is not None else ""}
                             {" | " if upper is not None and lower is not None else ""}
-                            {f"Lower: ${lower:,.2f}" if lower is not None else ""}
+                            {f"Lower: <span style='color: #ff5252; font-weight: bold;'>${lower:,.2f}</span>" if lower is not None else ""}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     # Display notifications
     if st.session_state.notifications:
+        st.markdown('<div class="notifications-container">', unsafe_allow_html=True)
         st.subheader("Alert Notifications")
         
         for notification in st.session_state.notifications:
@@ -420,70 +460,134 @@ def display_price_alerts_section():
             threshold = notification.get("threshold", 0)
             alert_type = notification.get("type", "")
             
-            color = "green" if alert_type == "upper" else "red"
+            color = "#4CAF50" if alert_type == "upper" else "#ff5252"
             icon = "↑" if alert_type == "upper" else "↓"
+            threshold_text = f"Above ${threshold:,.2f}" if alert_type == "upper" else f"Below ${threshold:,.2f}"
             
             st.markdown(f"""
-            <div style="background-color:#1E1E1E; border-radius:5px; padding:10px; margin-bottom:10px; border-left:4px solid {color};">
-                <div style="font-weight:bold;">{COIN_NAMES.get(coin, coin)} Price Alert</div>
-                <div>
-                    Current price: ${price:,.2f} {icon} 
-                    <span style="color:{color};">{threshold_text}</span>
+            <div class="notification-card" style="
+                background: linear-gradient(135deg, rgba(25,25,25,0.95), rgba(35,35,35,0.9));
+                border-radius: 8px; 
+                padding: 15px; 
+                margin-bottom: 12px;
+                border-left: 4px solid {color};
+                position: relative;
+                overflow: hidden;">
+                <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; 
+                    background: linear-gradient(90deg, {color}, transparent);"></div>
+                <div style="font-weight: bold; color: white;">{COIN_NAMES.get(coin, coin)} Price Alert</div>
+                <div style="margin-top: 8px;">
+                    Current price: <span style="font-weight: bold;">${price:,.2f}</span> {icon} 
+                    <span style="color: {color}; font-weight: bold;">{threshold_text}</span>
                 </div>
-                <div style="font-size:12px; color:#888;">
+                <div style="font-size: 12px; color: #888; margin-top: 5px;">
                     {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
                 </div>
             </div>
             """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def display_readme():
     """Display project README information"""
     st.markdown("""
-    # Cryptocurrency Statistics System
+    # Cryptocurrency Statistics System 📈
     
     This application displays real-time cryptocurrency statistics by fetching data from a custom API that collects data from CoinGecko.
+    """)
     
-    ## Architecture
+    # Display architecture in a more visual way
+    st.markdown("""
+    <div class="architecture-container" style="background: linear-gradient(135deg, rgba(25,25,25,0.95), rgba(35,35,35,0.9)); border-radius: 12px; padding: 20px; margin: 20px 0;">
+        <h2 style="text-align: center; margin-bottom: 20px;">System Architecture</h2>
+        <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
+            <div style="background: linear-gradient(135deg, rgba(40,40,40,0.9), rgba(30,30,30,0.95)); border-radius: 8px; padding: 15px; margin: 10px; width: 30%; min-width: 200px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 2px solid #4CAF50;">
+                <h3 style="margin-top: 0;">Frontend</h3>
+                <p>Streamlit Web Interface</p>
+                <div style="font-size: 32px; color: #4CAF50; margin: 10px 0;">🖥️</div>
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(40,40,40,0.9), rgba(30,30,30,0.95)); border-radius: 8px; padding: 15px; margin: 10px; width: 30%; min-width: 200px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 2px solid #FF9800;">
+                <h3 style="margin-top: 0;">API Server</h3>
+                <p>Node.js REST API</p>
+                <div style="font-size: 32px; color: #FF9800; margin: 10px 0;">🔌</div>
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(40,40,40,0.9), rgba(30,30,30,0.95)); border-radius: 8px; padding: 15px; margin: 10px; width: 30%; min-width: 200px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 2px solid #2196F3;">
+                <h3 style="margin-top: 0;">Worker Server</h3>
+                <p>Background Data Service</p>
+                <div style="font-size: 32px; color: #2196F3; margin: 10px 0;">⚙️</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    The system consists of three main components:
+    # Features section with more visual appeal
+    st.markdown("""
+    <div class="features-container" style="margin: 20px 0;">
+        <h2 style="text-align: center; margin-bottom: 20px;">Features</h2>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between;">
+            <div style="background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95)); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 48%; min-width: 250px;">
+                <span style="color: #4CAF50;">💰</span> Real-time cryptocurrency prices and statistics
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95)); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 48%; min-width: 250px;">
+                <span style="color: #FF9800;">📊</span> Interactive price history charts with volume data
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95)); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 48%; min-width: 250px;">
+                <span style="color: #2196F3;">📈</span> Market dominance visualization
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95)); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 48%; min-width: 250px;">
+                <span style="color: #9C27B0;">🔗</span> Price correlation analysis
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95)); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 48%; min-width: 250px;">
+                <span style="color: #F44336;">⚡</span> Customizable price alerts
+            </div>
+            <div style="background: linear-gradient(135deg, rgba(30,30,30,0.9), rgba(20,20,20,0.95)); border-radius: 8px; padding: 12px; margin-bottom: 12px; width: 48%; min-width: 250px;">
+                <span style="color: #00BCD4;">🔄</span> Manual data refresh
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    1. **Frontend (Streamlit)**: This web interface you're using now
-    2. **API Server**: Node.js server that provides endpoints for cryptocurrency data
-    3. **Worker Server**: Background service that triggers data updates every 15 minutes
+    # How it works section
+    st.markdown("""
+    <div class="how-it-works-container" style="background: linear-gradient(135deg, rgba(25,25,25,0.95), rgba(35,35,35,0.9)); border-radius: 12px; padding: 20px; margin: 20px 0;">
+        <h2 style="text-align: center; margin-bottom: 20px;">How It Works</h2>
+        <ol style="padding-left: 20px;">
+            <li style="margin-bottom: 10px;">The worker server triggers an update every 15 minutes via NATS messaging system</li>
+            <li style="margin-bottom: 10px;">The API server receives this event and fetches new data from CoinGecko</li>
+            <li style="margin-bottom: 10px;">Data is stored in MongoDB for historical analysis</li>
+            <li style="margin-bottom: 10px;">This frontend displays the data through API calls</li>
+        </ol>
+    </div>
+    """, unsafe_allow_html=True)
     
-    ## Features
-    
-    - Real-time price, market cap, and 24-hour change display
-    - Interactive price history charts with volume data
-    - Market dominance visualization
-    - Price correlation analysis
-    - Trading volume comparisons
-    - Price deviation calculations
-    - Customizable price alerts
-    - Multiple display modes: cards, table, and minimal
-    - Manual data refresh
-    - Server management interface
-    
-    ## How It Works
-    
-    1. The worker server triggers an update every 15 minutes via NATS messaging system
-    2. The API server receives this event and fetches new data from CoinGecko
-    3. Data is stored in MongoDB for historical analysis
-    4. This frontend displays the data through API calls
-    
-    ## Getting Started
-    
-    Navigate to the "Server Management" tab to start the API and worker servers. Once the servers are running,
-    you can use the dashboard to view and analyze cryptocurrency data.
-    
-    ## Supported Cryptocurrencies
-    
-    Currently, the system supports the following cryptocurrencies:
-    
-    - Bitcoin (BTC)
-    - Ethereum (ETH)
-    - Polygon (MATIC)
-    
+    # Supported cryptocurrencies with icons
+    st.markdown("""
+    <div class="crypto-support-container" style="margin: 20px 0;">
+        <h2 style="text-align: center; margin-bottom: 20px;">Supported Cryptocurrencies</h2>
+        <div style="display: flex; justify-content: center; flex-wrap: wrap;">
+            <!-- Bitcoin -->
+            <div style="background: linear-gradient(135deg, rgba(40,40,40,0.9), rgba(30,30,30,0.95)); border-radius: 8px; padding: 15px; margin: 10px; min-width: 150px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 2px solid #F7931A;">
+                <div style="font-size: 32px; color: #F7931A; margin-bottom: 10px;">₿</div>
+                <h3 style="margin: 0;">Bitcoin</h3>
+                <p style="color: #ccc; margin-top: 5px;">(BTC)</p>
+            </div>
+            <!-- Ethereum -->
+            <div style="background: linear-gradient(135deg, rgba(40,40,40,0.9), rgba(30,30,30,0.95)); border-radius: 8px; padding: 15px; margin: 10px; min-width: 150px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 2px solid #627EEA;">
+                <div style="font-size: 32px; color: #627EEA; margin-bottom: 10px;">Ξ</div>
+                <h3 style="margin: 0;">Ethereum</h3>
+                <p style="color: #ccc; margin-top: 5px;">(ETH)</p>
+            </div>
+            <!-- Polygon -->
+            <div style="background: linear-gradient(135deg, rgba(40,40,40,0.9), rgba(30,30,30,0.95)); border-radius: 8px; padding: 15px; margin: 10px; min-width: 150px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 2px solid #8247E5;">
+                <div style="font-size: 32px; color: #8247E5; margin-bottom: 10px;">⬡</div>
+                <h3 style="margin: 0;">Polygon</h3>
+                <p style="color: #ccc; margin-top: 5px;">(MATIC)</p>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("""
     ## API Endpoints
     
     - `/health` - API health check
@@ -507,6 +611,21 @@ def main():
     # Custom CSS
     st.markdown("""
     <style>
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .button-row > div.stButton {
+            flex: 1;
+        }
+
+        @media (max-width: 600px) {
+            .button-row {
+                flex-direction: column;
+            }
+        }
         /* Center headers */
         h1, h2, h3, h4, h5, h6 {
             text-align: center;
@@ -568,11 +687,13 @@ def main():
         .server-status.online {
             background-color: #4CAF50;
             color: white;
+            margin-botton: 30px;
         }
         
         .server-status.offline {
             background-color: #F44336;
             color: white;
+            margin-botton: 30px;
         }
         
         /* Header height */
@@ -864,54 +985,60 @@ def main():
     # Server Management tab
     with tab3:
         col1, col2 = st.columns(2)
-        
+
         with col1:
             st.header("API Server")
-            
-            api_status = "online" if check_api_health() else "offline"
-            st.markdown(f"""
-            <div>Status: <span class="server-status {api_status}">{api_status.upper()}</span></div>
-            """, unsafe_allow_html=True)
-            
-            if not check_api_health():
-                if st.button("Start API Server"):
-                    run_server_process("api")
-                    st.success("Starting API server... Please wait")
-                    time.sleep(3)
-                    st.rerun()
-            else:
-                if st.button("Stop API Server"):
-                    stop_server_process("api")
-                    st.warning("Stopping API server...")
-                    time.sleep(3)
-                    st.rerun()
-        
+            coll1,coll2=st.columns(2)
+            with coll1:
+                api_status = "online" if check_api_health() else "offline"
+                st.markdown(f"""
+                <div>Status: <span class="server-status {api_status}">{api_status.upper()}</span></div>
+                """, unsafe_allow_html=True)
+            with coll2:
+                st.markdown('<div class="button-row">', unsafe_allow_html=True)
+                if not check_api_health():
+                    if st.button("Start API Server"):
+                        run_server_process("api")
+                        st.success("Starting API server... Please wait")
+                        time.sleep(3)
+                        st.rerun()
+                else:
+                    if st.button("Stop API Server"):
+                        stop_server_process("api")
+                        st.warning("Stopping API server...")
+                        time.sleep(3)
+                        st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
         with col2:
             st.header("Worker Server")
+            coll1,coll2=st.columns(2)
+            with coll1:
+                worker_running = hasattr(st.session_state, "worker_process") and st.session_state.worker_process is not None
+                worker_status = "online" if worker_running else "offline"
+
+                st.markdown(f"""
+                <div>Status: <span class="server-status {worker_status}">{worker_status.upper()}</span></div>
+                """, unsafe_allow_html=True)
             
-            # We don't have a direct health check for worker server
-            worker_running = hasattr(st.session_state, "worker_process") and st.session_state.worker_process is not None
-            worker_status = "online" if worker_running else "offline"
-            
-            st.markdown(f"""
-            <div>Status: <span class="server-status {worker_status}">{worker_status.upper()}</span></div>
-            """, unsafe_allow_html=True)
-            
-            if not worker_running:
-                if st.button("Start Worker Server"):
-                    run_server_process("worker")
-                    st.success("Starting Worker server... Please wait")
-                    time.sleep(3)
-                    st.rerun()
-            else:
-                if st.button("Stop Worker Server"):
-                    stop_server_process("worker")
-                    st.warning("Stopping Worker server...")
-                    time.sleep(3)
-                    st.rerun()
-        
+            with coll2:
+                st.markdown('<div class="button-row">', unsafe_allow_html=True)
+                if not worker_running:
+                    if st.button("Start Worker Server"):
+                        run_server_process("worker")
+                        st.success("Starting Worker server... Please wait")
+                        time.sleep(3)
+                        st.rerun()
+                else:
+                    if st.button("Stop Worker Server"):
+                        stop_server_process("worker")
+                        st.warning("Stopping Worker server...")
+                        time.sleep(3)
+                        st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
         st.divider()
-        
+                
         # Server configuration section
         st.header("Server Configuration")
         
