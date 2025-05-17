@@ -4,6 +4,10 @@
 
 This project consists of two Node.js servers that work together to collect, store, and expose cryptocurrency statistics and  a Streamlit application that provides a user-friendly interface to interact with the cryptocurrency statistics API.
 
+## Demo Video
+
+![](demo.mp4)
+
 ## Features
 
 - Real-time cryptocurrency statistics display
