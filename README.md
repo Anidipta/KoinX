@@ -59,7 +59,7 @@ The frontend communicates with the API server, which fetches data from CoinGecko
 ```
 +----------------+       +--------------+       +-------------+       +---------------+
 | Streamlit UI   | <---> | API Server   | <---> | MongoDB     |       | CoinGecko API | 
-| (app.py)       |       | (Node.js)    | <---> | Database    |  <--> |               |
+| (app.py)       |       |  (Python)    | <---> | Database    |  <--> |               |
 +----------------+       +--------------+       +-------------+       +---------------+
                                ^
                                |
